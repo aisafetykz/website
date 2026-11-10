@@ -1,0 +1,29 @@
+---
+import Base from "../layouts/Base.astro";
+import Berkutchi from "../components/Berkutchi.astro";
+---
+
+<Base>
+  <Berkutchi>
+    <h1 class="display">Making sure AI goes well</h1>
+    <p class="lede">A community in Kazakhstan working toward reducing risks.</p>
+    <div class="actions">
+      <a class="btn" href="https://t.me/aisafetykz" target="_blank" rel="noopener">Join the community <span class="arrow">→</span></a>
+    </div>
+  </Berkutchi>
+</Base>
+
+<style>
+  .display {
+    font-size: var(--text-display);
+    letter-spacing: -0.03em;
+    line-height: 1.02;
+    margin: 24px 0 28px;
+  }
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 36px;
+  }
+</style>

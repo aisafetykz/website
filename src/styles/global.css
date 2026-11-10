@@ -1,0 +1,113 @@
+/* Quiet and editorial: warm paper, navy ink, one touch of steppe gold. */
+:root {
+  --paper: #fff7f4; /* same paper as the hero art */
+  --ink: #0f1d36;
+  --ink-soft: #33405a;
+  --line: rgba(15, 29, 54, 0.11);
+  --blue: #1d4f9c;
+  --yellow: #f2b42e;
+  --yellow-soft: #f7dd97;
+
+  --font-body: "Source Serif 4", Georgia, serif;
+  --font-head: "Brygada 1918", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --max: 1240px;
+  --gutter: clamp(20px, 5vw, 64px);
+  --radius: 10px;
+  --text-display: clamp(2.7rem, 1.5rem + 3.6vw, 5.2rem);
+  --text-lead: clamp(1.15rem, 1rem + 0.45vw, 1.4rem);
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--yellow-soft);
+  color: var(--ink);
+}
+
+h1 {
+  font-family: var(--font-head);
+  font-weight: 400;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.container {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.lede {
+  font-size: var(--text-lead);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 36em;
+}
+
+/* Buttons: plain navy rectangles. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  min-height: 48px;
+  padding: 0.65em 1.25em;
+  border-radius: var(--radius);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.btn:hover {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.arrow {
+  font-family: var(--font-mono);
+  transition: transform 0.2s var(--ease);
+}
+a:hover .arrow {
+  transform: translateX(3px);
+}
