@@ -5,6 +5,19 @@ import Footer from "../components/Footer.astro";
 
 const title = "AI Safety Kazakhstan";
 const description = "Making sure AI goes well. A community in Kazakhstan working toward reducing risks.";
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+
+const organization = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: title,
+  alternateName: "AI Safety KZ",
+  url: Astro.site?.href,
+  description,
+  email: "hello@aisafetykz.org",
+  areaServed: { "@type": "Country", name: "Kazakhstan" },
+  sameAs: ["https://t.me/aisafetykz"],
+};
 ---
 
 <!doctype html>
@@ -14,6 +27,21 @@ const description = "Making sure AI goes well. A community in Kazakhstan working
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href={canonical} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={title} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
+    <script type="application/ld+json" set:html={JSON.stringify(organization)} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

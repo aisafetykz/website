@@ -10,6 +10,7 @@
     "poster": "bun scripts/render-berkutchi.ts --width 1600 --height 900 && bun scripts/render-berkutchi.ts --width 780 --height 1440"
   },
   "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
     "astro": "^7.4.8",
     "vgpu": "0.6.0"
   },

@@ -1,0 +1,5 @@
+# Everyone is welcome to crawl this site, including search engines and AI crawlers.
+User-agent: *
+Allow: /
+
+Sitemap: https://aisafetykz.org/sitemap-index.xml
