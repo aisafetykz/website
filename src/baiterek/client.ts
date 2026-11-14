@@ -158,11 +158,14 @@ export async function mount(root: HTMLElement) {
       size = Math.min(box.width * 0.42, 230);
       fade = [title.top - 100, title.top - 20];
     } else {
-      // Landscape: the trunk comes down between the two bottom text blocks.
+      // Landscape: the tower stands in the middle of the hero, and its trunk
+      // comes down between the two bottom text blocks. Where they leave no
+      // room in the middle it gets thinner, and only then moves over.
       const left = text("[data-statement]").right + 24;
       const right = text("[data-aside]").left - 24;
-      size = Math.max(80, Math.min(box.height * 0.3, (right - left) / 2 / TRUNK));
-      centre = Math.max(left + TRUNK * size, Math.min(left + (right - left) * 0.56, right - TRUNK * size));
+      const middle = box.width / 2;
+      size = Math.max(80, Math.min(box.height * 0.3, Math.min(middle - left, right - middle) / TRUNK));
+      centre = Math.max(left + TRUNK * size, Math.min(middle, right - TRUNK * size));
       top = box.height * 0.05;
       // Any branch tip that would land on the title pushes the tower down.
       for (const [x, y] of TIPS) {
