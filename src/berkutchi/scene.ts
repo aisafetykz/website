@@ -25,6 +25,11 @@ const HOLD = 9; // seconds the eagle stays together after a call
 const FADE = 16; // seconds it takes to come apart again
 const WG = 64;
 
+const smooth = (a: number, b: number, v: number) => {
+  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
 export interface Berkutchi {
   /** Call the eagle back (when it has drifted apart). */
   recall(): void;
@@ -49,7 +54,7 @@ export interface Options {
 }
 
 export function createBerkutchi(api: Api, gpu: Gpu, shaders: Shaders, opts: Options = {}): Berkutchi {
-  const SPACING = 0.0165; // eagle-local units between halftone dots
+  const SPACING = 0.0095; // eagle-local units between halftone dots
   const eagle = eaglePoints(SPACING);
   const count = eagle.length + AMBIENT;
   const dpr = opts.dpr ?? 1;
@@ -59,7 +64,8 @@ export function createBerkutchi(api: Api, gpu: Gpu, shaders: Shaders, opts: Opti
   const rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
 
   const particles = new Float32Array(count * 4);
-  eagle.forEach((p, i) => particles.set([p.x, p.y, p.tone, p.seed], i * 4));
+  // Ink and part ride along with the tone: tone + 2 * ink + 8 * part (the shaders unpack it).
+  eagle.forEach((p, i) => particles.set([p.x, p.y, p.tone + 2 * p.ink + 8 * p.part, p.seed], i * 4));
   for (let i = eagle.length; i < count; i++) {
     particles.set([0, 0, -(0.5 + rand() * 0.9), rand()], i * 4);
   }
@@ -92,8 +98,12 @@ export function createBerkutchi(api: Api, gpu: Gpu, shaders: Shaders, opts: Opti
   let time = opts.startTime ?? 0;
   let lastRecall = opts.assembled ? time : -1e9;
   let cohesion = opts.assembled ? 1 : 0;
-  let flap = 0;
+  let flap = 0; // wingbeat phase
+  let flapAmp = 0; // eased toward the wingbeat the moment calls for
   let flapBoost = opts.assembled ? 0 : 1;
+  let head = 1; // -1 looking left, 1 looking right
+  let lastTap: [number, number] | null = null;
+  let tapAt = -1e9;
   let pointer: [number, number] = [0, 0];
   let kickAt: [number, number] = [0, 0];
   let kick = 0;
@@ -115,28 +125,48 @@ export function createBerkutchi(api: Api, gpu: Gpu, shaders: Shaders, opts: Opti
   function layout() {
     const w = 0.09;
     const wide = aspect > 1.1;
-    const bank = -0.1 * Math.cos(time * w);
     if (wide) {
       // Keep to the right: proportionally on wide screens, by the edge on squarer ones.
-      const cx = Math.max(0.42 * aspect, aspect - 0.72);
-      const scale = Math.min(0.58, aspect * 0.3) * (0.96 + 0.04 * Math.cos(time * w));
+      const cx = Math.max(0.46 * aspect, aspect - 0.9);
+      const scale = Math.min(0.8, aspect * 0.43) * (0.96 + 0.04 * Math.cos(time * w));
       return {
-        x: cx + Math.min(0.06 * aspect, 0.1) * Math.sin(time * w),
-        y: -0.17 + 0.04 * Math.sin(time * w * 2 + 0.7),
+        x: cx + Math.min(0.05 * aspect, 0.08) * Math.sin(time * w),
+        y: -0.12 + 0.04 * Math.sin(time * w * 2 + 0.7),
         scale,
-        bank,
-        sun: [cx, 0.3] as [number, number],
+        sun: [cx, 0.36] as [number, number],
         sunScale: 0.66,
       };
     }
-    const scale = Math.min(0.5, aspect * 0.52) * (0.96 + 0.04 * Math.cos(time * w));
+    const scale = Math.min(0.62, aspect * 0.8) * (0.96 + 0.04 * Math.cos(time * w));
     return {
       x: 0.06 * aspect * Math.sin(time * w),
-      y: 0.4 + 0.03 * Math.sin(time * w * 2 + 0.7),
+      y: 0.33 + 0.03 * Math.sin(time * w * 2 + 0.7),
       scale,
-      bank,
-      sun: [0.1 * aspect, 0.66] as [number, number],
+      sun: [0.1 * aspect, 0.68] as [number, number],
       sunScale: 0.42,
+    };
+  }
+
+  // Every few seconds of soaring, a short bout of deep wingbeats.
+  function bout(t: number): number {
+    const u = t % 11;
+    return smooth(0, 0.5, u) * (1 - smooth(2.2, 3, u));
+  }
+
+  // The flight itself: slow banking turns with the tail steering against
+  // them, a little pitch, and the head scanning the steppe or watching you.
+  function flight() {
+    const t = time;
+    const roll = 0.3 * Math.sin(t * 0.23) + 0.08 * Math.sin(t * 0.81 + 1.3);
+    const rollRate = 0.3 * 0.23 * Math.cos(t * 0.23) + 0.08 * 0.81 * Math.cos(t * 0.81 + 1.3);
+    return {
+      roll,
+      yaw: 0.16 * Math.sin(t * 0.23 - 0.9) + 0.04 * Math.sin(t * 0.5),
+      pitch: 0.12 * Math.sin(t * 0.31 + 0.4),
+      tailTwist: -0.5 * roll - 2.2 * rollRate,
+      tailSpread: 1 + 0.1 * Math.sin(t * 0.43) + 0.18 * bout(t) + 0.15 * flapBoost,
+      // turbulence flexes the wingtips
+      gust: 0.08 + 0.07 * Math.sin(t * 1.9) * Math.sin(t * 0.67 + 2) + 0.03 * Math.sin(t * 5.3),
     };
   }
 
@@ -157,6 +187,8 @@ export function createBerkutchi(api: Api, gpu: Gpu, shaders: Shaders, opts: Opti
       }
       lastRecall = time;
       flapBoost = 1;
+      lastTap = [x, y];
+      tapAt = time;
     },
     setPointer(x, y, on) {
       pointer = [x, y];
@@ -171,15 +203,25 @@ export function createBerkutchi(api: Api, gpu: Gpu, shaders: Shaders, opts: Opti
       cohesion += Math.sign(goal - cohesion) * Math.min(Math.abs(goal - cohesion), rate * stepDt);
       flapBoost = Math.max(0, flapBoost - stepDt * 0.25);
       kick = Math.max(0, kick - stepDt * 0.6); // about 1.7 s to regather
-      flap += stepDt * (1.6 + 4.5 * flapBoost);
+
+      // Wingbeat: near still while soaring, deep beats in bouts and after a call.
+      const want = Math.min(0.75, 0.035 + 0.5 * bout(time) + 0.6 * flapBoost);
+      flapAmp += (want - flapAmp) * (1 - Math.exp(-stepDt * 2.5));
+      flap += stepDt * 2 * Math.PI * (1.25 + 0.45 * flapBoost);
+
+      // The head follows the pointer (or the last tap); otherwise it scans.
+      const f = layout();
+      const look = pointerOn ? pointer : time - tapAt < 4 && lastTap ? lastTap : null;
+      let gaze = Math.sin(time * 0.21 + 0.4) + 0.5 * Math.sin(time * 0.67);
+      if (look) gaze = (look[0] - f.x) / (0.25 * f.scale);
+      gaze = Math.max(-1, Math.min(1, gaze * 2));
+      head += (gaze - head) * (1 - Math.exp(-stepDt * 5));
     },
     encode(frame, target) {
       const [w, h] = target.size;
       aspect = w / h;
       const f = layout();
-      // Mostly soaring; a few beats now and then, and hard beats after a call.
-      const idleBeat = Math.max(0, Math.sin(time * 0.35)) ** 8;
-      const flapAmp = 0.06 + 0.25 * idleBeat + 0.45 * flapBoost;
+      const fl = flight();
 
       sim.set({
         params: {
@@ -193,13 +235,22 @@ export function createBerkutchi(api: Api, gpu: Gpu, shaders: Shaders, opts: Opti
           aspect,
           cohesion,
           scale: f.scale,
-          bank: f.bank,
           flap,
           flapAmp,
           pointerOn: pointerOn ? 1 : 0,
           // one halftone cell of the eagle, in device pixels
           dotSize: SPACING * f.scale * (h / 2),
           count,
+          yaw: fl.yaw,
+          pitch: fl.pitch,
+          roll: fl.roll,
+          dihedral: 0.13,
+          gust: fl.gust,
+          tailTwist: fl.tailTwist,
+          tailSpread: fl.tailSpread,
+          headTurn: head,
+          // the body lifts as the wings sweep down
+          bob: -0.035 * flapAmp * Math.sin(flap - 0.6),
         },
       });
       sky.set({
