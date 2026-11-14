@@ -1,0 +1,143 @@
+---
+// The homepage hero. On wide screens the default slot (the title) sits top
+// left, the "corner" slot top right, the "statement" slot bottom left and the
+// "aside" slot bottom right. On phones the corner stays top right and the
+// other three stack at the bottom. The open space holds the art: the
+// Baiterek tower written out in weights, which places itself around the text.
+---
+
+<section class="hero" data-baiterek>
+  <canvas role="img" aria-label="The Baiterek tower in Astana, drawn out of rows of numbers."></canvas>
+  <div class="content" data-content>
+    <div class="title" data-title><slot /></div>
+    <div class="corner"><slot name="corner" /></div>
+    <div class="statement" data-statement><slot name="statement" /></div>
+    <div class="aside" data-aside><slot name="aside" /></div>
+  </div>
+</section>
+
+<script>
+  import { mount } from "../baiterek/client";
+
+  document.querySelectorAll<HTMLElement>("[data-baiterek]").forEach((el) => mount(el));
+</script>
+
+<style>
+  .hero {
+    position: relative;
+    height: 100svh;
+    min-height: 640px;
+    max-height: 980px;
+    overflow: hidden;
+    background: var(--paper);
+    color: var(--ink);
+    /* The layout follows the hero's shape, not the viewport's. */
+    container: hero / size;
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .content {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "title corner"
+      ". ."
+      "statement aside";
+    gap: 24px 48px;
+    /* The same margin on every side: the title's capitals, the corner, the
+       statement's baseline and the aside all sit on it. */
+    padding: var(--gutter);
+  }
+  .title {
+    grid-area: title;
+    /* Leaves the right half for the art. */
+    max-width: min(44rem, 50cqw);
+  }
+  .corner {
+    grid-area: corner;
+    justify-self: end;
+  }
+  .statement {
+    grid-area: statement;
+    align-self: end;
+    max-width: 36rem;
+  }
+  .aside {
+    grid-area: aside;
+    align-self: end;
+    max-width: 26rem;
+  }
+  .statement :global(p) {
+    font-family: var(--font-head);
+    font-size: clamp(1.5rem, 0.9rem + 1.6vw, 2.6rem);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    /* Trims the line's own space, so the baseline sits on the margin. */
+    text-box: trim-both cap alphabetic;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .aside :global(.lede) {
+    color: var(--ink-soft);
+    margin-bottom: 20px;
+  }
+
+  @media (max-aspect-ratio: 11/10) {
+    .hero {
+      min-height: 820px;
+    }
+  }
+
+  /* Portrait: the top is kept for the art, the text takes the bottom. */
+  @container hero (max-aspect-ratio: 11/10) {
+    .content {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto auto auto;
+      grid-template-areas:
+        "corner"
+        "title"
+        "statement"
+        "aside";
+      gap: 0;
+      padding-bottom: 48px;
+    }
+    .title,
+    .statement {
+      max-width: 36rem;
+    }
+    .statement,
+    .aside {
+      align-self: start;
+    }
+    .title :global(.display) {
+      font-size: clamp(1.95rem, 8.6vw, 3.2rem);
+      margin-bottom: 16px;
+    }
+    .statement :global(p) {
+      font-size: 1.35rem;
+    }
+    .aside {
+      margin-top: 12px;
+    }
+    .aside :global(.lede) {
+      font-size: 1.05rem;
+      margin-bottom: 22px;
+    }
+    .aside :global(.actions) {
+      gap: 8px;
+    }
+    .aside :global(.btn) {
+      padding: 0.55em 1em;
+      font-size: 0.95rem;
+    }
+  }
+</style>

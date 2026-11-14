@@ -1,16 +1,20 @@
 ---
 import Base from "../layouts/Base.astro";
-import Berkutchi from "../components/Berkutchi.astro";
+import Hero from "../components/Hero.astro";
 ---
 
 <Base>
-  <Berkutchi>
-    <h1 class="display">Making sure AI goes well</h1>
-    <p class="lede">A community in Kazakhstan working toward reducing risks.</p>
-    <div class="actions">
-      <a class="btn" href="https://t.me/aisafetykz" target="_blank" rel="noopener">Join the community <span class="arrow">→</span></a>
+  <Hero>
+    <h1 class="display">AI Safety Kazakhstan</h1>
+    <a class="btn join" slot="corner" href="https://t.me/aisafetykz" target="_blank" rel="noopener">Join</a>
+    <p slot="statement">Making sure AI goes well</p>
+    <div slot="aside">
+      <p class="lede">A community in Kazakhstan working toward reducing risks.</p>
+      <div class="actions">
+        <a class="btn" href="https://t.me/aisafetykz" target="_blank" rel="noopener">Join the community <span class="arrow">→</span></a>
+      </div>
     </div>
-  </Berkutchi>
+  </Hero>
 </Base>
 
 <style>
@@ -18,12 +22,17 @@ import Berkutchi from "../components/Berkutchi.astro";
     font-size: var(--text-display);
     letter-spacing: -0.03em;
     line-height: 1.02;
-    margin: 24px 0 28px;
+    margin: 0;
+    /* Trims the line's top space, so the capitals can line up with the header. */
+    text-box: trim-both cap alphabetic;
+  }
+  .join {
+    min-height: 40px;
+    padding: 0.4em 1.1em;
   }
   .actions {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
-    margin-top: 36px;
   }
 </style>

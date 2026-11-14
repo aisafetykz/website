@@ -1,6 +1,6 @@
-/* Quiet and editorial: warm paper, navy ink, one touch of steppe gold. */
+/* Quiet and editorial: pale sky paper, navy ink, one touch of steppe gold. */
 :root {
-  --paper: #fff7f4; /* same paper as the hero art */
+  --paper: #e6f4f7; /* a pale take on the sky blue of the flag */
   --ink: #0f1d36;
   --ink-soft: #33405a;
   --line: rgba(15, 29, 54, 0.11);
@@ -12,10 +12,9 @@
   --font-head: "Brygada 1918", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 
-  --max: 1240px;
   --gutter: clamp(20px, 5vw, 64px);
   --radius: 10px;
-  --text-display: clamp(2.7rem, 1.5rem + 3.6vw, 5.2rem);
+  --text-display: clamp(2.7rem, 1rem + 5vw, 6.5rem);
   --text-lead: clamp(1.15rem, 1rem + 0.45vw, 1.4rem);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
@@ -70,8 +69,6 @@ a {
 }
 
 .container {
-  max-width: var(--max);
-  margin: 0 auto;
   padding: 0 var(--gutter);
 }
 

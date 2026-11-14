@@ -6,20 +6,14 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
-    "poster": "bun scripts/render-berkutchi.ts --width 1600 --height 900 && bun scripts/render-berkutchi.ts --width 780 --height 1440"
+    "preview": "astro preview"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
-    "astro": "^7.4.8",
-    "vgpu": "0.6.0"
+    "astro": "^7.4.8"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
-    "@types/pngjs": "6.0.5",
-    "@vgpu/wgsl": "0.6.0",
-    "@webgpu/types": "0.1.74",
-    "pngjs": "7.0.0",
     "typescript": "6"
   }
 }
