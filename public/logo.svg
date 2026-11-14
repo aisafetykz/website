@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>AI Safety Kazakhstan</title>
+  <!-- An A, with a golden point where its crossbar would be. -->
+  <path d="M32 4 60 60H48.5L32 25 15.5 60H4Z" fill="#0f1d36"/>
+  <circle cx="32" cy="50" r="8" fill="#f2b42e"/>
+</svg>

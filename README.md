@@ -11,6 +11,13 @@ bun run build    # static output in dist/
 - Page: `src/pages/index.astro`
 - Hero, footer, layout: `src/components/`, `src/layouts/Base.astro`
 - Colours and fonts: `src/styles/global.css`
+- Logo: `public/logo.svg`, which is also the tab icon. The two PNG icons are made from it with ImageMagick:
+
+```sh
+magick -background none -density 1200 public/logo.svg -resize 48x48 -depth 8 -strip public/favicon.png
+magick -background "#e6f4f7" -density 1200 public/logo.svg -resize 116x116 -gravity center -extent 180x180 \
+  -depth 8 -strip -alpha off public/apple-touch-icon.png
+```
 
 ## Baiterek (the hero art)
 
