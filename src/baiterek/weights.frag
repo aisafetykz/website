@@ -5,19 +5,21 @@
 // outline. Nothing is drawn that is not a character.
 //
 // It is shaded like the round thing it is: toward the light the decimals
-// thin out into 1s and 7s, in shadow they fill up with 8s and 0s. And it
-// runs like the network its weights belong to: every few seconds a signal
-// enters at the ground, climbs the trunk, fans out along the branches and
-// lights the sphere. A small spot follows the pointer and stirs the weights
-// under it, and clicking the tower sets off a signal from that point.
+// thin out into 1s and 7s, in shadow they fill up with 8s and 0s. A small
+// spot follows the pointer and stirs the weights under it, and clicking the
+// tower sets off a signal from that point.
+//
+// And it runs like the network its weights belong to. Every few seconds it
+// makes a forward pass: a prompt resolves out of the weights in the trunk,
+// climbs the tower a layer at a time, each layer attending across a
+// different stretch of its row, fans out through the branches, which are its
+// heads, and the sphere says the next token. Then both turn back into
+// numbers.
 //
 // The sky behind it is faint and also numbers: uneven beams of light from
 // the sphere, and clouds drifting past.
 //
 // When it is really snowing in Astana, it snows here too.
-//
-// Now and then a row of the trunk's weights resolves into words, and turns
-// back into numbers.
 //
 // Now and then Samruk, the bird of the legend, flies in, circles the crown
 // and flies on.
@@ -29,8 +31,12 @@ precision highp float;
 const int SIGNALS = 8;
 const int PULSES = 6;
 const int KEEP_OUTS = 12;
-const int WORDS = 4;
-const float WORD_CELLS = 24.0; // the longest phrase
+const int PROMPTS = 4;
+const float WORD_CELLS = 20.0; // the longest prompt
+const int LAYERS = 6;
+const float PASS = 9.5;     // seconds from one forward pass to the next
+const float CLIMB_AT = 1.3; // into a pass, when the prompt starts up the trunk
+const float STEP = 0.28;    // seconds to a layer
 
 // The colours come from the page.
 uniform vec3 uInk;      // the steel
@@ -39,7 +45,8 @@ uniform vec3 uGold;     // the sphere
 uniform vec3 uGlow;     // the sphere, lit up
 uniform vec3 uCloud;
 uniform float uSnow;    // how hard it is snowing in Astana, 0 to 1
-uniform float uWordLengths[WORDS];
+uniform float uPromptLengths[PROMPTS];
+uniform float uNextLengths[PROMPTS];
 uniform vec4 uBird;     // Samruk: x, y, half its wingspan (0: not here), wingbeat -1 to 1
 uniform vec2 uBirdWay;  // which way it faces (-1 or 1), and whether it is in front of the tower
 uniform vec2 uRes;      // canvas size, device px
@@ -57,7 +64,7 @@ uniform vec3 uPulses[PULSES]; // recent clicks: x, y, seconds ago (negative: unu
 uniform vec3 uSignals[SIGNALS]; // where a click set one off: x, y, seconds ago (negative: unused)
 uniform sampler2D uMap;
 uniform sampler2D uAtlas; // "0123456789.-*" in one row
-uniform sampler2D uWords; // the hidden phrases, one to a row
+uniform sampler2D uWords; // each prompt and then its next token, one to a row
 
 out vec4 outColor;
 
@@ -232,23 +239,40 @@ void main() {
     flakeKind = hash(flake + 2.0);
   }
 
-  // A phrase hidden in the trunk: which one, on which row, and whether this
-  // cell is one of its letters right now. Letters resolve left to right,
-  // hold, and turn back.
-  float round = (uGrow - 6.0) / 11.0;
-  float into = fract(round) * 11.0;
-  float phrase = mod(floor(round), float(WORDS));
-  float letters = uWordLengths[int(phrase)];
-  float wordAt = uSphere.y + (1.62 + 0.33 * hash(vec2(floor(round), 1.0))) * uSphere.z;
-  // Never below the bottom of the hero, or into where the tower fades.
-  float wordRow = floor(min(wordAt, min(uRes.y, uFade.x) - 3.0 * uCell.y) / uCell.y);
-  float wordCell = cell.x - floor(uSphere.x / uCell.x) + floor(letters / 2.0);
-  float inWord = step(0.0, round) * step(uGrow, 500.0) * float(cell.y == wordRow) * isSteel * step(0.97, cover.r);
-  inWord *= step(0.0, wordCell) * step(wordCell, letters - 1.0);
-  float shows = wordCell / letters * 0.9 + 0.3 * hash(vec2(cell.x, floor(round)));
-  float letter = inWord * step(shows, into) * step(into, 4.6 + shows);
-  vec2 turns = (into - shows - vec2(0.0, 4.6)) / 0.25;
-  float turning = inWord * max(exp(-turns.x * turns.x), exp(-turns.y * turns.y));
+  // A forward pass: which prompt, and how far into the pass it is.
+  float run = (uGrow - 4.2) / PASS;
+  float into = fract(run) * PASS;
+  float pass = floor(run);
+  float live = step(0.0, run) * step(uGrow, 500.0);
+  float which = mod(pass, float(PROMPTS));
+  float wordRows = float(PROMPTS * 2);
+  // The prompt sits in the trunk, a cell to a character, just below where
+  // the branches leave it: never below the bottom of the hero, or into where
+  // the tower fades. Its letters resolve left to right, hold until the
+  // sphere has answered, and turn back.
+  float letters = uPromptLengths[int(which)];
+  float promptRow = floor(min(uSphere.y + 1.8 * uSphere.z, min(uRes.y, uFade.x) - 3.0 * uCell.y) / uCell.y);
+  float promptCell = cell.x - floor(uSphere.x / uCell.x) + floor(letters / 2.0);
+  float inPrompt = live * float(cell.y == promptRow) * step(-1.0, promptCell) * step(promptCell, letters) * step(0.5, clear);
+  // The layers stand between the prompt and the sphere. Where the tower
+  // fades out before there is room for them, the pass skips them.
+  float perLayer = (promptRow - 2.0 - floor((uSphere.y + 0.72 * uSphere.z) / uCell.y)) / float(LAYERS); // rows
+  float hasLayers = step(1.0, perLayer);
+  float fanAt = CLIMB_AT + float(LAYERS) * STEP * hasLayers; // when it leaves the layers for the branches
+  float saidAt = fanAt + mix(1.0, 0.7, hasLayers);           // when it reaches the sphere
+  float until = saidAt + 3.6;
+  float shows = promptCell / letters * 0.7 + 0.3 * hash(vec2(cell.x, pass));
+  float letter = inPrompt * step(shows, into) * step(into, until + 0.5 * shows);
+  vec2 turns = (into - vec2(shows, until + 0.5 * shows)) / 0.25;
+  float turning = inPrompt * max(exp(-turns.x * turns.x), exp(-turns.y * turns.y));
+  // The next token resolves across the middle of the sphere.
+  float nextLetters = uNextLengths[int(which)];
+  float nextCell = cell.x - floor(uSphere.x / uCell.x) + floor(nextLetters / 2.0);
+  float inNext = live * float(cell.y == floor(uSphere.y / uCell.y)) * isSphere * step(-1.0, nextCell) * step(nextCell, nextLetters);
+  float nextShows = saidAt + 0.25 + 0.3 * nextCell / nextLetters + 0.2 * hash(vec2(cell.x, pass + 0.5));
+  float nextLetter = inNext * step(nextShows, into) * step(into, until + 0.5 * shows);
+  vec2 nextTurns = (into - vec2(nextShows, until + 0.5 * shows)) / 0.25;
+  float nextTurning = inNext * max(exp(-nextTurns.x * nextTurns.x), exp(-nextTurns.y * nextTurns.y));
   fresh = mix(fresh, 1.0 - smoothstep(0.0, 1.0, sphereAge), isSphere);
 
   // Light: the sphere is a ball and the trunk a column, lit from the upper
@@ -264,15 +288,33 @@ void main() {
   // Only the solid trunk is round; branches and rings are lit evenly.
   float lit = mix(0.5, clamp(dot(normal, light), 0.0, 1.0), max(isSphere, step(0.97, cover.r)));
 
-  // The signal: how far along the tower a cell is, from the ground up the
-  // trunk and out along the branches, and where the two pulses are now.
+  // The pass climbs the tower a layer at a time. When a layer wakes, a band
+  // of rows lights across the whole tower at its height, and along the
+  // band's first row a stretch turns gold: the layer attending, each one
+  // across a different stretch. `along` is how far up the tower a cell is,
+  // from where the branches leave the trunk, and `strand` how far across.
   float along = alongAt(at);
-  float beat = mod(uGrow - 3.6, 5.5) * step(3.6, uGrow) * step(uGrow, 500.0);
-  float reach = beat * 2.3 - 1.6;
-  vec2 gap = (along - vec2(reach, reach - 0.6)) / 0.13;
-  float signal = max(exp(-gap.x * gap.x), exp(-gap.y * gap.y)) * isSteel;
-  float arrival = (beat - 2.0 - 0.35 * length(ball)) / 0.4;
-  signal += exp(-arrival * arrival) * isSphere * step(0.01, beat);
+  float strand = acrossAt(at, along);
+  float up = promptRow - 2.0 - cell.y; // rows above the first layer's first row
+  float layer = floor(up / max(perLayer, 1.0));
+  float rowIn = floor(up - layer * perLayer);
+  float inLayers = hasLayers * step(0.0, up) * step(layer, float(LAYERS) - 0.5);
+  float since = (into - CLIMB_AT) / STEP - layer; // in layers
+  float wake = live * inLayers * isSteel * smoothstep(0.0, 0.25, since) * exp(-1.6 * max(since - 1.0, 0.0));
+  float attendAt = 1.2 * (hash(vec2(layer + 3.0, pass)) - 0.5);
+  float attendOver = 0.35 + 0.45 * hash(vec2(pass, layer + 9.0));
+  float attending = wake * float(rowIn == 0.0) * step(abs(strand - attendAt), attendOver);
+  float signal = wake * mix(0.7, 1.0, float(rowIn == 0.0)) * step(rowIn, max(1.0, min(floor(perLayer) - 1.0, 3.0)) - 0.5);
+
+  // Out of the last layer it runs on and fans out along the branches. Each
+  // branch is a head, and fires at its own strength on every pass.
+  float branch = sign(strand) * (1.0 + step(0.38, abs(strand)) + step(0.7, abs(strand)) + step(0.9, abs(strand)));
+  float firing = mix(1.0, 0.1 + 0.9 * smoothstep(0.15, 0.75, hash(vec2(branch + 5.0, pass))), smoothstep(0.35, 0.8, along));
+  float gap = (along - mix(0.1, 1.0, hasLayers) - (into - fanAt) * 2.3) / 0.15;
+  signal += live * exp(-gap * gap) * firing * isSteel * (1.0 - inLayers) * step(cell.y, promptRow - 2.0);
+  // Then it lights the sphere, from the middle out.
+  float arrival = (into - saidAt - 0.35 * length(ball)) / 0.4;
+  signal += live * exp(-arrival * arrival) * isSphere;
 
   // Signals a click set off run on from where it touched the tower.
   // From the trunk one fans out into every branch; from a branch it stays
@@ -297,7 +339,7 @@ void main() {
   float role = mod(cell.x + floor(hash(vec2(cell.y, 7.0)) * 7.0), 7.0);
   // Weights settle slowly on their own and churn when stirred or new.
   float tick = floor(uTime * 0.11 + seed * 40.0);
-  if (max(max(max(fresh, signal), e), turning) > 0.12 + 0.5 * seed) tick += floor(uTime * 13.0 + seed * 9.0);
+  if (max(max(max(fresh, signal), e), max(turning, nextTurning)) > 0.12 + 0.5 * seed) tick += floor(uTime * 13.0 + seed * 9.0);
   float r = hash(cell + tick * vec2(17.13, 5.71));
   // The decimals lean heavy or light with the shading, and still vary.
   float glyph = RAMP[int(clamp(lit + (r - 0.5) * 0.7, 0.0, 0.999) * 10.0)];
@@ -323,15 +365,19 @@ void main() {
     glyph = flakeKind < 0.6 ? 12.0 : 10.0;
   }
   float number = texture(uAtlas, vec2((glyph + inCell.x) / 13.0, inCell.y)).r * (1.0 - blank);
-  if (letter > 0.0) number = texture(uWords, vec2((wordCell + inCell.x) / WORD_CELLS, (phrase + inCell.y) / float(WORDS))).r;
+  // A letter takes its cell over, and the cell either side of a word is
+  // left empty.
+  if (letter > 0.0) number = texture(uWords, vec2((promptCell + inCell.x) / WORD_CELLS, (which * 2.0 + inCell.y) / wordRows)).r * step(0.0, promptCell) * step(promptCell, letters - 1.0);
+  if (nextLetter > 0.0) number = texture(uWords, vec2((nextCell + inCell.x) / WORD_CELLS, (which * 2.0 + 1.0 + inCell.y) / wordRows)).r * step(0.0, nextCell) * step(nextCell, nextLetters - 1.0);
 
   vec3 steelColor = mix(uInk, uBlue, max(signal, smoothstep(0.0, 0.5, e)));
   // The middle of the spot, and the head of a signal a click sent, are gold.
   steelColor = mix(steelColor, uGlow, smoothstep(0.6, 1.0, max(sent, e)));
   // New growth comes in bright and cools to ink.
   steelColor = mix(steelColor, mix(uBlue, uGlow, smoothstep(0.5, 1.0, fresh)), fresh);
-  // A hidden phrase reads in blue, and flashes gold as its letters turn.
-  steelColor = mix(steelColor, uBlue, letter * 0.8);
+  // The row a layer attends along is gold.
+  steelColor = mix(steelColor, uGlow, attending);
+  // The weights flash gold as the prompt's letters turn.
   steelColor = mix(steelColor, uGlow, turning * 0.8);
 
   // The sky first (under the spot it shows that it is weights too), then
@@ -341,13 +387,19 @@ void main() {
   // White would vanish on pale paper, so the snow is a soft blue.
   color = mix(color, mix(uCloud, uBlue, 0.35), step(alpha, snow));
   alpha = max(alpha, snow);
-  color = mix(color, mix(uGold, uGlow, max(max(fresh, signal), e)), isSphere);
+  color = mix(color, mix(uGold, uGlow, max(max(fresh, signal), max(e, nextTurning))), isSphere);
   alpha = mix(alpha, 1.0 - 0.4 * lit, isSphere);
   color = mix(color, steelColor, isSteel);
-  alpha = mix(alpha, mix(1.0 - 0.3 * lit * step(0.97, cover.r), 1.0, letter), isSteel);
+  alpha = mix(alpha, 1.0 - 0.3 * lit * step(0.97, cover.r), isSteel);
 
   color = mix(color, uGold, isBird);
   alpha = mix(alpha, clear * mix(0.7, 1.0, uBirdWay.y), isBird);
+
+  // The prompt reads in blue wherever it falls, on the steel or on open
+  // sky, and the sphere's answer in ink.
+  color = mix(color, mix(uInk, uBlue, 0.8), letter);
+  color = mix(color, uInk, nextLetter);
+  alpha = mix(alpha, 1.0, max(letter, nextLetter));
 
   alpha *= number * fade;
   outColor = vec4(color * alpha, alpha);

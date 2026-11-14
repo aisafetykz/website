@@ -9,10 +9,17 @@ const GLYPHS = "0123456789.-*"; // the star is for snow
 const SIGNALS = 8; // matches the shader
 const PULSES = 6; // too
 const KEEP_OUTS = 12; // too
-// Phrases hidden in the trunk's weights. The shader knows how many there are
-// and how long the longest is.
-const WORDS = ["making sure AI goes well", "AI safety kazakhstan", "бәйтерек", "the tree of life"];
-const WORD_CELLS = 24;
+// What the tower is asked, and what it answers: on each forward pass one
+// prompt resolves in the trunk and the sphere says the token that comes
+// next. The shader knows how many there are and how long the longest prompt
+// is.
+const PROMPTS: [prompt: string, next: string][] = [
+  ["making sure AI goes", "well"],
+  ["AI safety", "kazakhstan"],
+  ["бәй", "терек"],
+  ["the tree of", "life"],
+];
+const WORD_CELLS = 20;
 // The weather in Astana right now, from Open-Meteo (free, no key). The codes
 // are WMO's: these are the ones that mean snow, with how hard.
 const WEATHER =
@@ -47,7 +54,7 @@ export async function mount(root: HTMLElement) {
   if (!canvas || !gl) return;
 
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  await document.fonts.load('500 16px "IBM Plex Mono"', GLYPHS + WORDS.join("")).catch(() => {});
+  await document.fonts.load('500 16px "IBM Plex Mono"', GLYPHS + PROMPTS.flat().join("")).catch(() => {});
 
   let prog: WebGLProgram;
   try {
@@ -170,20 +177,22 @@ export async function mount(root: HTMLElement) {
     [...GLYPHS].forEach((glyph, i) => ctx.fillText(glyph, (i + 0.5) * cellW, cellH / 2 + fontSize * 0.35));
     uploadAtlas(atlas);
 
-    // The hidden phrases, set in the same cells, one phrase to a row.
+    // The prompts and their next tokens, set in the same cells: each prompt
+    // on a row and its next token on the row below.
     words.width = WORD_CELLS * cellW;
-    words.height = WORDS.length * cellH;
+    words.height = PROMPTS.length * 2 * cellH;
     const pen = words.getContext("2d")!;
     pen.fillStyle = "#000";
     pen.fillRect(0, 0, words.width, words.height);
     pen.font = ctx.font;
     pen.fillStyle = "#fff";
     pen.textAlign = "center";
-    WORDS.forEach((phrase, row) => {
-      [...phrase].forEach((glyph, i) => pen.fillText(glyph, (i + 0.5) * cellW, (row + 0.5) * cellH + fontSize * 0.35));
+    PROMPTS.flat().forEach((text, row) => {
+      [...text].forEach((glyph, i) => pen.fillText(glyph, (i + 0.5) * cellW, (row + 0.5) * cellH + fontSize * 0.35));
     });
     uploadWords(words);
-    gl.uniform1fv(uniform("uWordLengths"), WORDS.map((phrase) => phrase.length));
+    gl.uniform1fv(uniform("uPromptLengths"), PROMPTS.map(([prompt]) => [...prompt].length));
+    gl.uniform1fv(uniform("uNextLengths"), PROMPTS.map(([, next]) => [...next].length));
 
     gl.uniform2f(uniform("uRes"), canvas.width, canvas.height);
     gl.uniform2f(uniform("uCell"), cellW, cellH);
