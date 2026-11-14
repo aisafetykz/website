@@ -18,8 +18,12 @@
 
 <script>
   import { mount } from "../baiterek/client";
+  import { predict } from "../baiterek/next";
 
-  document.querySelectorAll<HTMLElement>("[data-baiterek]").forEach((el) => mount(el));
+  document.querySelectorAll<HTMLElement>("[data-baiterek]").forEach((el) => {
+    predict(el);
+    mount(el);
+  });
 </script>
 
 <style>

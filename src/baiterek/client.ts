@@ -3,6 +3,7 @@
 // simply stays plain.
 
 import fragment from "./weights.frag?raw";
+import type { Predicting } from "./next";
 import { drawBaiterek, HALF_WIDTH, HEADROOM, SPHERE, TIPS, TRUNK } from "./shape";
 
 const GLYPHS = "0123456789.-*"; // the star is for snow
@@ -12,7 +13,7 @@ const KEEP_OUTS = 12; // too
 // What the tower is asked, and what it answers: on each forward pass one
 // prompt resolves in the trunk and the sphere says the token that comes
 // next. The shader knows how many there are and how long the longest prompt
-// is.
+// is. The first is the page's own statement, whose last word waits for it.
 const PROMPTS: [prompt: string, next: string][] = [
   ["making sure AI goes", "well"],
   ["AI safety", "kazakhstan"],
@@ -20,6 +21,14 @@ const PROMPTS: [prompt: string, next: string][] = [
   ["the tree of", "life"],
 ];
 const WORD_CELLS = 20;
+// A pass's timing, as the shader has it, in seconds: from planting to the
+// first pass, from one pass to the next, into a pass until it starts up the
+// layers, and to a layer.
+const FIRST_PASS = 4.2;
+const PASS = 9.5;
+const CLIMB_AT = 1.3;
+const STEP = 0.28;
+const LAYERS = 6;
 // The weather in Astana right now, from Open-Meteo (free, no key). The codes
 // are WMO's: these are the ones that mean snow, with how hard.
 const WEATHER =
@@ -54,6 +63,15 @@ export async function mount(root: HTMLElement) {
   if (!canvas || !gl) return;
 
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The page hears how far the pass on its statement has got: -1 before it,
+  // 0 once the prompt is in, then each layer, and one past the last layer
+  // when the sphere has said the next token.
+  let told = -1;
+  const tell = (layer: number) => {
+    const detail: Predicting = { layer: (told = layer), layers: LAYERS };
+    if (!still) root.dispatchEvent(new CustomEvent("baiterek:predict", { detail }));
+  };
+  tell(-1);
   await document.fonts.load('500 16px "IBM Plex Mono"', GLYPHS + PROMPTS.flat().join("")).catch(() => {});
 
   let prog: WebGLProgram;
@@ -61,6 +79,7 @@ export async function mount(root: HTMLElement) {
     prog = program(gl);
   } catch (err) {
     console.info("Baiterek: leaving the hero plain.", err);
+    tell(LAYERS + 1);
     return;
   }
   gl.useProgram(prog);
@@ -89,6 +108,7 @@ export async function mount(root: HTMLElement) {
   const atlas = document.createElement("canvas");
 
   let dpr = 1;
+  let hasLayers = true;
   const sphere = { x: 0, y: 0, unit: 1 }; // device px
   // The lines of text and the buttons: left, top, right, bottom, in CSS px from the hero's corner.
   let textBoxes: number[][] = [];
@@ -113,6 +133,8 @@ export async function mount(root: HTMLElement) {
       const ink = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
       const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
       while (walker.nextNode()) {
+        // Only what is always there, not what a forward pass shows for a while.
+        if (walker.currentNode.parentElement?.closest("[aria-hidden]")) continue;
         range.selectNodeContents(walker.currentNode);
         for (const r of range.getClientRects()) {
           ink.left = Math.min(ink.left, r.left - box.left);
@@ -202,16 +224,19 @@ export async function mount(root: HTMLElement) {
     // buttons) as a whole.
     const keepOuts: number[][] = [];
     const content = root.querySelector("[data-content]")!;
-    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      if (walker.currentNode.parentElement?.closest("a")) continue;
-      range.selectNodeContents(walker.currentNode);
-      // One box per line: the pieces of a line share a top.
+    for (const block of content.children) {
+      // One box per line of a block: the pieces of a line share a top.
       const lines = new Map<number, number[]>();
-      for (const r of range.getClientRects()) {
-        if (r.width < 1) continue;
-        const line = lines.get(Math.round(r.top)) ?? [Infinity, r.top, -Infinity, r.bottom];
-        lines.set(Math.round(r.top), [Math.min(line[0], r.left), line[1], Math.max(line[2], r.right), line[3]]);
+      const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        // Not the candidates for the next token, which bring their own ground.
+        if (walker.currentNode.parentElement?.closest("a, [aria-hidden]")) continue;
+        range.selectNodeContents(walker.currentNode);
+        for (const r of range.getClientRects()) {
+          if (r.width < 1) continue;
+          const line = lines.get(Math.round(r.top)) ?? [Infinity, r.top, -Infinity, r.bottom];
+          lines.set(Math.round(r.top), [Math.min(line[0], r.left), line[1], Math.max(line[2], r.right), line[3]]);
+        }
       }
       // A line's box is taller than its letters; trim it toward the ink.
       for (const [left, top, right, bottom] of lines.values()) {
@@ -231,6 +256,15 @@ export async function mount(root: HTMLElement) {
     gl.uniform4fv(uniform("uKeepOuts"), keepOutData);
     Object.assign(sphere, { x: x0 + (HALF_WIDTH + SPHERE.x) * px, y: y0 + (HEADROOM + SPHERE.y) * px, unit: px });
     gl.uniform3f(uniform("uSphere"), sphere.x, sphere.y, sphere.unit);
+    // The prompt's row, just below where the branches leave the trunk: never
+    // below the bottom of the hero, or into where the tower fades. The
+    // layers share out the rows from there up to the sphere.
+    const promptRow = Math.floor(
+      Math.min(sphere.y + 1.8 * px, Math.min(canvas.height, fade[0] * dpr) - 3 * cellH) / cellH,
+    );
+    const perLayer = (promptRow - 2 - Math.floor((sphere.y + 0.72 * px) / cellH)) / LAYERS;
+    hasLayers = perLayer >= 1;
+    gl.uniform2f(uniform("uPrompt"), promptRow, perLayer);
     if (!running) draw(performance.now());
   };
 
@@ -327,6 +361,16 @@ export async function mount(root: HTMLElement) {
     } else {
       gl.uniform4f(uniform("uBird"), 0, 0, 0, 0);
     }
+    // The pass on the page's statement, for the page to follow.
+    const run = ((now - planted) / 1000 - FIRST_PASS) / PASS;
+    let layer = -1;
+    if (run >= 0) {
+      const into = (run % 1) * PASS;
+      const said = CLIMB_AT + (hasLayers ? LAYERS * STEP + 0.7 : 1) + 0.5;
+      const own = Math.floor(run) % PROMPTS.length === 0;
+      layer = own && into < said ? Math.max(0, Math.min(LAYERS, Math.floor((into - CLIMB_AT) / STEP) + 1)) : LAYERS + 1;
+    }
+    if (layer !== told) tell(layer);
     gl.uniform1f(uniform("uTime"), still ? 0 : now / 1000);
     // With reduced motion the tower is simply there, fully grown.
     gl.uniform1f(uniform("uGrow"), still ? 1e3 : Math.max(0, now - planted) / 1000);

@@ -1,13 +1,30 @@
 ---
 import Base from "../layouts/Base.astro";
 import Hero from "../components/Hero.astro";
+import NextToken from "../components/NextToken.astro";
 ---
 
 <Base>
   <Hero>
     <h1 class="display">AI Safety Kazakhstan</h1>
     <a class="btn join" slot="corner" href="https://t.me/aisafetykz" target="_blank" rel="noopener">Join</a>
-    <p slot="statement">Making sure AI goes well</p>
+    <p slot="statement">
+      <NextToken
+        prompt={[
+          ["Making", 23874],
+          [" sure", 1654],
+          [" AI", 9552],
+          [" goes", 2925],
+        ]}
+        candidates={[
+          ["well", 0.12, 0.93],
+          ["wrong", 0.27, 0.02],
+          ["on", 0.24, 0.01],
+          ["away", 0.2, 0.01],
+          ["right", 0.17, 0.03],
+        ]}
+      />
+    </p>
     <div slot="aside">
       <p class="lede">A community in Kazakhstan working toward reducing risks.</p>
       <div class="actions">

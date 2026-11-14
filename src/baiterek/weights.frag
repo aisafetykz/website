@@ -34,6 +34,7 @@ const int KEEP_OUTS = 12;
 const int PROMPTS = 4;
 const float WORD_CELLS = 20.0; // the longest prompt
 const int LAYERS = 6;
+// The page keeps the same time, to follow the pass on its own statement.
 const float PASS = 9.5;     // seconds from one forward pass to the next
 const float CLIMB_AT = 1.3; // into a pass, when the prompt starts up the trunk
 const float STEP = 0.28;    // seconds to a layer
@@ -53,6 +54,7 @@ uniform vec2 uRes;      // canvas size, device px
 uniform vec2 uCell;     // one character cell, device px
 uniform vec4 uMapRect;  // where the coverage map sits: x, y, width, height
 uniform vec2 uFade;     // the tower fades out between these two heights
+uniform vec2 uPrompt;   // the row the prompt is set on, and how many rows each layer above it gets
 uniform vec3 uSphere;   // the sphere's centre, and one tower unit, device px
 uniform float uTime;
 uniform float uGrow;    // seconds since the tower began to grow
@@ -246,17 +248,15 @@ void main() {
   float live = step(0.0, run) * step(uGrow, 500.0);
   float which = mod(pass, float(PROMPTS));
   float wordRows = float(PROMPTS * 2);
-  // The prompt sits in the trunk, a cell to a character, just below where
-  // the branches leave it: never below the bottom of the hero, or into where
-  // the tower fades. Its letters resolve left to right, hold until the
-  // sphere has answered, and turn back.
+  // The prompt sits in the trunk, a cell to a character. Its letters resolve
+  // left to right, hold until the sphere has answered, and turn back.
   float letters = uPromptLengths[int(which)];
-  float promptRow = floor(min(uSphere.y + 1.8 * uSphere.z, min(uRes.y, uFade.x) - 3.0 * uCell.y) / uCell.y);
+  float promptRow = uPrompt.x;
   float promptCell = cell.x - floor(uSphere.x / uCell.x) + floor(letters / 2.0);
   float inPrompt = live * float(cell.y == promptRow) * step(-1.0, promptCell) * step(promptCell, letters) * step(0.5, clear);
   // The layers stand between the prompt and the sphere. Where the tower
   // fades out before there is room for them, the pass skips them.
-  float perLayer = (promptRow - 2.0 - floor((uSphere.y + 0.72 * uSphere.z) / uCell.y)) / float(LAYERS); // rows
+  float perLayer = uPrompt.y;
   float hasLayers = step(1.0, perLayer);
   float fanAt = CLIMB_AT + float(LAYERS) * STEP * hasLayers; // when it leaves the layers for the branches
   float saidAt = fanAt + mix(1.0, 0.7, hasLayers);           // when it reaches the sphere
